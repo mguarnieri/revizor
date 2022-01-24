@@ -134,6 +134,15 @@ class ConfCls:
     enable_ssbp_patch: bool = True
     enable_pre_run_flush: bool = True
     enable_assist_page: bool = False
+    ### x86-gem5 configuration flags ==============================================================
+    gem5_location: str = ""
+    gem5_output_location: str = "gem5out"
+    gem5_build: str = "build/X86/gem5.opt"
+    gem5_additional_flags =  []
+    gem5_flags = ["--cpu-type=DerivO3CPU", "--bp-type=RandomBP", "--l1d_size=64kB", "--l1i_size=16kB", "--caches", "--l1traces",  "--l2cache", "--isolatedl2"] 
+    gem5_test_case_path: str = "test_case"
+    gem5_trace_mode: str = "data_cache"
+    gem5_batch_size: int =  1
     # ==============================================================================================
     # Analyser
     analyser: str = 'equivalence-classes'

@@ -38,6 +38,10 @@ class TestCase:
         run(f"objcopy {outfile} -O binary {outfile}", shell=True, check=True)
         return outfile
 
+    def to_string(self) -> str:
+        with open(self.asm_path, "r") as f:
+            return f.read()
+
 
 class Input(np.ndarray):
     """

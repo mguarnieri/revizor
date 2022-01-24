@@ -12,6 +12,14 @@ class NotSupportedException(Exception):
     pass
 
 
+def assemble_and_link(infile, tmpfile , outfile):
+    """
+    Assemble the test case into a binary
+    """
+    run(f"as -mmnemonic=intel -msyntax=intel {infile} -o {tmpfile}", shell=True, check=True)
+    run(f"ld {tmpfile} -o {outfile}", shell=True, check=True)
+
+
 def get_prng_state_after_iterations(seed: int, num_iterations: int) -> int:
     # each test case (and, accordingly, each iteration) generates 7 random values
     total_executions = num_iterations * 7
