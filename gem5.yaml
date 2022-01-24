@@ -1,0 +1,10 @@
+contract_observation_mode: ct
+contract_execution_mode:
+  - seq
+executor: x86-gem5
+gem5_location: /home/marco.guarnieri/gem5
+gem5_output_location: gem5out
+gem5_additional_flags: []
+gem5_test_case_path: test_case
+gem5_trace_mode: data_cache
+gem5_batch_size: 1
