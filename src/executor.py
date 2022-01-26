@@ -140,18 +140,8 @@ class X86Intel(Executor):
 
 class X86Gem5(Executor):
     code_segment: str = ""
-    RUNTIME_R_SIZE: int = 1024 * 1024
-    CODE_SIZE: int = 4 * 1024
-    RSP_OFFSET: int = RUNTIME_R_SIZE // 2
-    RBP_OFFSET: int = RUNTIME_R_SIZE // 2
-    R14_OFFSET: int  = RUNTIME_R_SIZE // 2
-    code_base: int  = 4198400 
-    sandbox_base: int = 5251072
-    stack_base: int = 7340032
-    r14_init = sandbox_base + R14_OFFSET 
-    rsp_init = stack_base + RSP_OFFSET
-    rbp_init = stack_base + RBP_OFFSET
-
+    WORKING_MEMORY_SIZE:int = 1024*1024
+    MAIN_REGION_SIZE:int = 4096
 
     def __init__(self):
         self.gem5_location = CONF.gem5_location
@@ -162,11 +152,15 @@ class X86Gem5(Executor):
         self.test_case_path = CONF.gem5_test_case_path
         self.trace_mode = CONF.gem5_trace_mode
         self.batch_size = CONF.gem5_batch_size
+        allocated_working_region = 0x502000
+        self.sandbox_base = allocated_working_region + int(self.WORKING_MEMORY_SIZE / 2)
+        self.stack_base = self.sandbox_base + self.MAIN_REGION_SIZE - 8 ## last byte in the main region
+        self.code_base = int(0x401000)
 
     def load_test_case(self, test_case: TestCase):
         self.code_segment = test_case.to_string()
 
-    def construct_program(self, code_segment: str = "", init_registers: str = "", init_flags: str = "",data_segment: str = "", stack_segment = "") -> str:
+    def construct_program(self, code_segment: str = "", init_registers: str = "", init_flags: str = "",data_segment: str = "") -> str:
 
         def clean_up(code_segment: str) -> str:
             code_segment = code_segment.replace(".intel_syntax noprefix", "")
@@ -195,9 +189,6 @@ class X86Gem5(Executor):
         program += ".section .data\n"
         program += data_segment
         program += "\n"
-        program += ".section .stack\n"
-        program += stack_segment
-        program += "\n"
         return program
 
     def generate_test_data(self, input_: Input) -> (str, str, str, str):
@@ -218,6 +209,8 @@ class X86Gem5(Executor):
             else: 
                 ## initialize flags
                 value = (value & np.uint64(2263)) | np.uint64(2)
+                init_flags += f"  MOV RSP, {self.stack_base}\n"
+                init_flags += f"  MOV RBP, {self.stack_base}\n"
                 init_flags += "  MOV RAX, {}\n".format(value)    # store eflags in eax
                 init_flags += "  PUSH RAX\n"   # push eax onto stack
                 init_flags += "  POPF\n"       # POP top of stack (eax in this case) into eflags
@@ -226,13 +219,12 @@ class X86Gem5(Executor):
         for reg in others:
             init_registers += f"  MOV {reg}, 0\n"
 
-        # Init stack
-        stack_values = []
-        for i in range(0, self.RUNTIME_R_SIZE , 64):
-            stack_values.append(  '0x%0*X' % (16,0)  )
-        stack_segment = "    .QUAD {}\n".format(','.join(stack_values)) 
+        # initialize R14, RBP, and RSP
+        init_registers += f"  MOV R14, {self.sandbox_base}\n"
+        init_registers += f"  MOV RSP, {self.stack_base}\n"
+        init_registers += f"  MOV RBP, {self.stack_base}\n"
 
-        return init_registers, data_segment, init_flags, stack_segment
+        return init_registers, data_segment, init_flags
 
 
     def get_trace(self, index: int) -> CombinedHTrace:
@@ -248,6 +240,9 @@ class X86Gem5(Executor):
                     values.append( [row[x] for x in fields] )
                 return values
             return []
+
+
+        ## NOTE: Addresses from the dCache/iCache traces are off by 5771264
 
         if self.trace_mode == "data_cache":
             values = read_trace("dCacheTrace_{}".format(index), [1,2])
@@ -293,10 +288,10 @@ class X86Gem5(Executor):
                 test_case_path = f"{self.test_case_path}_{counter}"
 
                 # 1. generate test data from input seed
-                (init_registers, data_segment, init_flags, stack_segment) = self.generate_test_data(input_)
+                (init_registers, data_segment, init_flags) = self.generate_test_data(input_)
 
                 # 2. construct the assembly program 
-                program = self.construct_program(self.code_segment, init_registers, init_flags, data_segment, stack_segment)
+                program = self.construct_program(self.code_segment, init_registers, init_flags, data_segment)
 
                 # 3. create the binary
                 with open(test_case_path+".asm", "w") as f:
@@ -309,9 +304,13 @@ class X86Gem5(Executor):
             # 4. run gem5 
             cmd = []
             cmd.append("{loc}/{build}".format(loc=self.gem5_location, build=self.gem5_build))
+
             # cmd.append("--debug-flags=SyscallBase") 
             # cmd.append("--debug-flags=ExecAll")
+            # cmd.append("--debug-flags=CacheAll")
             # cmd.append("--debug-flags=DRAM")
+            # cmd.append("--verbose")
+
             cmd.append("--outdir={}".format(self.gem5_output_location))
             cmd.append("{loc}/configs/example/se.py".format(loc=self.gem5_location))
             cmd.append("-c")
@@ -337,7 +336,7 @@ class X86Gem5(Executor):
         
 
     def read_base_addresses(self):
-        return self.sandbox_base, self.stack_base, self.code_base
+        return self.sandbox_base, self.code_base
 
 
 

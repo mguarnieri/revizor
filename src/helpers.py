@@ -24,9 +24,9 @@ def assemble_and_link(infile, tmpfile , outfile):
     """
     Assemble the test case into a binary
     """
-    run(f"as -mmnemonic=intel -msyntax=intel {infile} -o {tmpfile}", shell=True, check=True)
-    run(f"objcopy --remove-section .note.gnu.property {tmpfile}", shell=True, check=True)
-    run(f"ld {tmpfile} -o {outfile}  -Tlink1.ld", shell=True, check=True)
+    run(f"as -mmnemonic=intel -msyntax=intel {infile} -o {tmpfile}", shell=True, check=True, capture_output=True)
+    run(f"objcopy --remove-section .note.gnu.property {tmpfile}", shell=True, check=True, capture_output=True)
+    run(f"ld {tmpfile} -o {outfile}  -Tlink1.ld", shell=True, check=True, capture_output=True)
 
 
 def get_prng_state_after_iterations(seed: int, num_iterations: int) -> int:
